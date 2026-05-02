@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0e1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MEXC Screener" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>MEXC Futures Screener</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+
+    :root {
+      --bg: #0a0e1a;
+      --bg2: #0f1525;
+      --bg3: #151c30;
+      --card: #111827;
+      --border: #1e2d4a;
+      --accent: #00f5d4;
+      --accent2: #7c3aed;
+      --green: #00d084;
+      --red: #ff4757;
+      --yellow: #ffd32a;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --mono: 'Space Mono', monospace;
+      --sans: 'Syne', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* ── TOP HEADER ── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,14,26,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px 8px;
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .logo {
+      font-family: var(--sans);
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--accent);
+    }
+    .logo span { color: var(--text); }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      display: inline-block;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .status-dot.offline { background: var(--red); box-shadow: 0 0 6px var(--red); animation: none; }
+    .conn-label { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+    /* ── FILTER BAR ── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+    .filter-label {
+      font-size: 10px;
+      color: var(--muted);
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+    .filter-input {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 12px;
+      width: 52px;
+      padding: 4px 6px;
+      text-align: center;
+    }
+    .filter-input:focus { outline: none; border-color: var(--accent); }
+    .scan-btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 7px;
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 12px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .scan-btn:active { transform: scale(0.96); opacity: 0.85; }
+    .scan-btn.running { background: var(--red); }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: flex;
+      gap: 8px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-chip {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-family: var(--mono);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .stat-chip b { color: var(--accent); }
+
+    /* ── SORT BAR ── */
+    .sort-bar {
+      display: flex;
+      gap: 0;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .sort-bar::-webkit-scrollbar { display: none; }
+    .sort-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 7px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .sort-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── COIN LIST ── */
+    .coin-list {
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .coin-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 4px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+      cursor: pointer;
+    }
+    .coin-card:active { border-color: var(--accent); }
+    .coin-card.flash-green { animation: flash-g 0.5s ease; }
+    .coin-card.flash-red   { animation: flash-r 0.5s ease; }
+    @keyframes flash-g {
+      0%   { background: rgba(0,208,132,0.18); }
+      100% { background: var(--card); }
+    }
+    @keyframes flash-r {
+      0%   { background: rgba(255,71,87,0.18); }
+      100% { background: var(--card); }
+    }
+
+    .coin-heat-bar {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      border-radius: 10px 0 0 10px;
+    }
+
+    .coin-name {
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: -0.3px;
+    }
+    .coin-sub {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+    .coin-price {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 700;
+      text-align: right;
+    }
+    .coin-change {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-align: right;
+      margin-top: 1px;
+    }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+
+    .coin-metrics {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 10px;
+      margin-top: 7px;
+      padding-top: 7px;
+      border-top: 1px solid var(--border);
+    }
+    .metric {
+      flex: 1;
+      text-align: center;
+    }
+    .metric-val {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .metric-lbl {
+      font-size: 9px;
+      color: var(--muted);
+      margin-top: 1px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 9px;
+      font-family: var(--mono);
+      border-radius: 4px;
+      padding: 1px 5px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .badge-hot  { background: rgba(255,71,87,0.2); color: var(--red); }
+    .badge-new  { background: rgba(0,245,212,0.15); color: var(--accent); }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 13px; line-height: 1.6; }
+
+    /* ── LOADING ── */
+    .loader {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 0;
+      gap: 6px;
+    }
+    .loader span {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: bounce 1s infinite;
+    }
+    .loader span:nth-child(2) { animation-delay: 0.15s; background: var(--accent2); }
+    .loader span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-family: var(--mono);
+      color: var(--text);
+      transition: transform 0.3s cubic-bezier(.17,.67,.41,1.2);
+      z-index: 999;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── DETAIL SHEET ── */
+    .sheet-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 200;
+      display: none;
+      align-items: flex-end;
+    }
+    .sheet-overlay.open { display: flex; }
+    .sheet {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      padding: 16px;
+      width: 100%;
+      max-height: 60dvh;
+      overflow-y: auto;
+      animation: slideUp 0.28s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .sheet-handle {
+      width: 36px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 0 auto 14px;
+    }
+    .sheet-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sheet-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .sheet-item {
+      background: var(--bg3);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .sheet-item-lbl { font-size: 10px; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .sheet-item-val { font-family: var(--mono); font-size: 14px; font-weight: 700; }
+    .sheet-close {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 10px;
+      width: 100%;
+      font-family: var(--sans);
+      font-weight: 600;
+      font-size: 14px;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+
+    /* ── PROGRESS RING ── */
+    .refresh-ring {
+      width: 18px; height: 18px;
+      flex-shrink: 0;
+    }
+    .refresh-ring circle {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 2;
+    }
+    .refresh-ring .progress {
+      stroke: var(--accent);
+      stroke-linecap: round;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+      transition: stroke-dashoffset 0.5s linear;
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div class="logo">MEXC<span>SCAN</span></div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg class="refresh-ring" id="refreshRing" viewBox="0 0 20 20">
+        <circle cx="10" cy="10" r="8"/>
+        <circle class="progress" id="ringProgress" cx="10" cy="10" r="8"
+          stroke-dasharray="50.27" stroke-dashoffset="50.27"/>
+      </svg>
+      <span class="status-dot" id="statusDot"></span>
+      <span class="conn-label" id="connLabel">ожидание</span>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-group">
+      <span class="filter-label">Сделок≥</span>
+      <input class="filter-input" id="minTrades" type="number" value="10" min="1" />
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Объём≥</span>
+      <input class="filter-input" id="minVolume" type="number" value="100" min="0" style="width:64px" />
+      <span class="filter-label">K</span>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Интервал</span>
+      <select class="filter-input" id="intervalSel" style="width:64px">
+        <option value="1">1мин</option>
+        <option value="3">3мин</option>
+        <option value="5" selected>5мин</option>
+        <option value="15">15мин</option>
+      </select>
+    </div>
+    <button class="scan-btn" id="scanBtn" onclick="toggleScan()">▶ Старт</button>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-row">
+  <div class="stat-chip">Монет: <b id="totalCoins">—</b></div>
+  <div class="stat-chip">Активных: <b id="activeCoins">—</b></div>
+  <div class="stat-chip">Обн: <b id="lastUpdate">—</b></div>
+</div>
+
+<!-- SORT -->
+<div class="sort-bar">
+  <button class="sort-btn active" onclick="setSort('trades')">Сделки↓</button>
+  <button class="sort-btn" onclick="setSort('volume')">Объём↓</button>
+  <button class="sort-btn" onclick="setSort('change')">Изм%↓</button>
+  <button class="sort-btn" onclick="setSort('price')">Цена↓</button>
+</div>
+
+<!-- LIST -->
+<div class="coin-list" id="coinList">
+  <div class="empty-state">
+    <div class="icon">📡</div>
+    <p>Нажмите <b>▶ Старт</b> чтобы<br/>запустить сканирование<br/>фьючерсов MEXC</p>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- DETAIL SHEET -->
+<div class="sheet-overlay" id="sheetOverlay" onclick="closeSheet(event)">
+  <div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="sheetTitle">—</div>
+    <div class="sheet-grid" id="sheetGrid"></div>
+    <button class="sheet-close" onclick="closeSheet()">Закрыть</button>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const state = {
+  running: false,
+  symbols: [],          // all futures symbols from MEXC
+  data: {},             // symbol → { trades5m, volume5m, price, change24h, ... }
+  sort: 'trades',
+  interval: 5,          // minutes
+  minTrades: 10,
+  minVolume: 100,       // USDT thousands
+  scanTimer: null,
+  countdown: 30,        // seconds between full scan
+  countdownTimer: null,
+};
+
+const PROXY = 'https://api.allorigins.win/raw?url=';
+const BASE   = 'https://contract.mexc.com';
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+function fmt(n, d=2) {
+  if(n === undefined || n === null) return '—';
+  if(n >= 1e9) return (n/1e9).toFixed(1)+'B';
+  if(n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if(n >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return n.toFixed(d);
+}
+function fmtPrice(p) {
+  if(!p) return '—';
+  if(p >= 1000) return p.toFixed(1);
+  if(p >= 1)    return p.toFixed(3);
+  return p.toFixed(6);
+}
+function now() { return new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+function toast(msg, ms=2000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), ms);
+}
+function heatColor(trades, vol) {
+  const score = Math.min(1, (trades/200 + vol/2000)/2);
+  if(score > 0.7) return 'var(--red)';
+  if(score > 0.35) return 'var(--yellow)';
+  return 'var(--accent)';
+}
+
+// ─── FETCH helpers ───────────────────────────────────────────────────────────
+async function apiFetch(path) {
+  const url = `${BASE}${path}`;
+  // Try direct first (works on some devices/browsers)
+  try {
+    const r = await fetch(url, { headers: { 'Content-Type':'application/json' } });
+    if(r.ok) return r.json();
+  } catch(_) {}
+  // Fallback via allorigins proxy
+  const r2 = await fetch(PROXY + encodeURIComponent(url));
+  return r2.json();
+}
+
+// ─── LOAD SYMBOLS ────────────────────────────────────────────────────────────
+async function loadSymbols() {
+  setConn('loading');
+  try {
+    const d = await apiFetch('/api/v1/contract/detail');
+    if(d.success && d.data) {
+      state.symbols = d.data
+        .filter(s => s.state === 0 && s.quoteCoin === 'USDT')
+        .map(s => s.symbol);
+      document.getElementById('totalCoins').textContent = state.symbols.length;
+      setConn('ok');
+      return true;
+    }
+  } catch(e) {
+    console.error('loadSymbols', e);
+  }
+  setConn('err');
+  toast('⚠ Ошибка загрузки символов');
+  return false;
+}
+
+// ─── FETCH KLINE (1-min candles for last N minutes) ──────────────────────────
+async function fetchKline(symbol, minutes) {
+  const now = Date.now();
+  const start = now - minutes * 60 * 1000;
+  try {
+    const d = await apiFetch(
+      `/api/v1/contract/kline/${symbol}?interval=Min1&start=${Math.floor(start/1000)}&end=${Math.floor(now/1000)}`
+    );
+    if(!d.success || !d.data) return null;
+    const { vol, amount, close } = d.data;
+    if(!vol || vol.length === 0) return null;
+    const nCandles = Math.min(minutes, vol.length);
+    // last N candles
+    const sliceVol = vol.slice(-nCandles);
+    const sliceAmt = amount ? amount.slice(-nCandles) : [];
+    const totalVol = sliceVol.reduce((a,b)=>a+b, 0);
+    const totalAmt = sliceAmt.reduce((a,b)=>a+b, 0);
+    const lastPrice = close ? close[close.length-1] : 0;
+    return { volume: totalVol, amount: totalAmt, price: lastPrice };
+  } catch(e) { return null; }
+}
+
+// ─── FETCH TICKER (24h stats + trade count) ───────────────────────────────────
+async function fetchTicker(symbol) {
+  try {
+    const d = await apiFetch(`/api/v1/contract/ticker?symbol=${symbol}`);
+    if(!d.success || !d.data) return null;
+    const { lastPrice, riseFallRate, volume24, amount24 } = d.data;
+    return {
+      price: parseFloat(lastPrice) || 0,
+      change24h: parseFloat(riseFallRate) * 100 || 0,
+      vol24: parseFloat(volume24) || 0,
+    };
+  } catch(e) { return null; }
+}
+
+// ─── FETCH RECENT TRADES COUNT ────────────────────────────────────────────────
+async function fetchTradeCount(symbol, minutes) {
+  try {
+    const d = await apiFetch(`/api/v1/contract/deals/${symbol}?limit=200`);
+    if(!d.success || !d.data || !d.data.dataList) return 0;
+    const cutoff = Date.now() - minutes * 60 * 1000;
+    const recent = d.data.dataList.filter(t => t.t > cutoff);
+    return recent.length;
+  } catch(e) { return 0; }
+}
+
+// ─── SCAN ONE SYMBOL ─────────────────────────────────────────────────────────
+async function scanSymbol(symbol) {
+  const minutes = state.interval;
+  const [ticker, kline, trades] = await Promise.all([
+    fetchTicker(symbol),
+    fetchKline(symbol, minutes),
+    fetchTradeCount(symbol, minutes),
+  ]);
+  if(!ticker) return;
+  const prev = state.data[symbol];
+  state.data[symbol] = {
+    symbol,
+    price:    kline?.price || ticker.price,
+    change24h: ticker.change24h,
+    vol24:    ticker.vol24,
+    volume:   kline?.volume || 0,
+    amount:   kline?.amount || 0,   // USDT value
+    trades:   trades,
+    ts:       Date.now(),
+    prevPrice: prev?.price,
+  };
+}
+
+// ─── FULL SCAN (batched) ─────────────────────────────────────────────────────
+async function runScan() {
+  if(!state.running) return;
+  const syms = state.symbols;
+  if(!syms.length) return;
+
+  // scan top 60 by batches of 8 (rate-limit friendly)
+  const batch = 8;
+  const limit = Math.min(60, syms.length);
+  for(let i=0; i<limit; i+=batch) {
+    if(!state.running) break;
+    const slice = syms.slice(i, i+batch);
+    await Promise.all(slice.map(s => scanSymbol(s)));
+    renderList();
+    await sleep(300);
+  }
+  document.getElementById('lastUpdate').textContent = now();
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// ─── COUNTDOWN + LOOP ────────────────────────────────────────────────────────
+function startCountdown(seconds) {
+  clearInterval(state.countdownTimer);
+  state.countdown = seconds;
+  const total = seconds;
+  const ring = document.getElementById('ringProgress');
+  const circumference = 50.27;
+  const update = () => {
+    const pct = state.countdown / total;
+    ring.style.strokeDashoffset = circumference * (1 - pct);
+  };
+  update();
+  state.countdownTimer = setInterval(() => {
+    state.countdown--;
+    update();
+    if(state.countdown <= 0) {
+      clearInterval(state.countdownTimer);
+      runScan().then(() => { if(state.running) startCountdown(30); });
+    }
+  }, 1000);
+}
+
+// ─── TOGGLE SCAN ─────────────────────────────────────────────────────────────
+async function toggleScan() {
+  if(state.running) {
+    state.running = false;
+    clearInterval(state.countdownTimer);
+    document.getElementById('scanBtn').textContent = '▶ Старт';
+    document.getElementById('scanBtn').classList.remove('running');
+    setConn('off');
+    return;
+  }
+  state.running = true;
+  state.interval  = parseInt(document.getElementById('intervalSel').value);
+  state.minTrades = parseInt(document.getElementById('minTrades').value) || 0;
+  state.minVolume = parseInt(document.getElementById('minVolume').value) || 0;
+  document.getElementById('scanBtn').textContent = '⏹ Стоп';
+  document.getElementById('scanBtn').classList.add('running');
+  showLoader();
+  const ok = await loadSymbols();
+  if(!ok) { toggleScan(); return; }
+  await runScan();
+  if(state.running) startCountdown(30);
+}
+
+// ─── SORT ────────────────────────────────────────────────────────────────────
+function setSort(key) {
+  state.sort = key;
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase().includes(
+      key === 'trades' ? 'сделк' : key === 'volume' ? 'объём' : key === 'change' ? 'изм' : 'цена'
+    ));
+  });
+  renderList();
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function showLoader() {
+  document.getElementById('coinList').innerHTML =
+    `<div class="loader"><span></span><span></span><span></span></div>`;
+}
+
+function renderList() {
+  const minT = parseInt(document.getElementById('minTrades').value) || 0;
+  const minV = (parseInt(document.getElementById('minVolume').value) || 0) * 1000;
+
+  let items = Object.values(state.data).filter(d =>
+    d.trades >= minT && d.amount >= minV
+  );
+
+  const sortFn = {
+    trades: (a,b) => b.trades - a.trades,
+    volume: (a,b) => b.amount - a.amount,
+    change: (a,b) => Math.abs(b.change24h) - Math.abs(a.change24h),
+    price:  (a,b) => b.price - a.price,
+  }[state.sort] || ((a,b) => b.trades - a.trades);
+  items.sort(sortFn);
+
+  document.getElementById('activeCoins').textContent = items.length;
+
+  if(!items.length) {
+    document.getElementById('coinList').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🔍</div>
+        <p>Нет монет с такими фильтрами.<br/>Попробуйте снизить пороговые значения.</p>
+      </div>`;
+    return;
+  }
+
+  const html = items.map(d => {
+    const name = d.symbol.replace('_USDT','');
+    const changeClass = d.change24h >= 0 ? 'pos' : 'neg';
+    const changeSign  = d.change24h >= 0 ? '+' : '';
+    const priceClass  = d.prevPrice != null
+      ? (d.price >= d.prevPrice ? 'pos' : 'neg') : '';
+    const heat = heatColor(d.trades, d.amount/1000);
+    const isHot = d.trades > 80 || d.amount > 1000000;
+    return `
+    <div class="coin-card" id="card-${d.symbol}" onclick="showDetail('${d.symbol}')">
+      <div class="coin-heat-bar" style="background:${heat}"></div>
+      <div>
+        <div class="coin-name">
+          ${name}
+          ${isHot ? '<span class="badge badge-hot">🔥 HOT</span>' : ''}
+        </div>
+        <div class="coin-sub">${d.symbol} • PERP</div>
+      </div>
+      <div>
+        <div class="coin-price ${priceClass}">${fmtPrice(d.price)}</div>
+        <div class="coin-change ${changeClass}">${changeSign}${d.change24h.toFixed(2)}%</div>
+      </div>
+      <div class="coin-metrics">
+        <div class="metric">
+          <div class="metric-val" style="color:var(--accent)">${d.trades}</div>
+          <div class="metric-lbl">Сделок ${state.interval}м</div>
+        </div>
+        <div class="metric">
+          <div class="metric-val" style="color:var(--yellow)">${fmt(d.amount)}</div>
+          <div class="metric-lbl">Объём ${state.interval}м $</div>
+        </div>
+        <div class="metric">
+          <div class="metric-val" style="color:${heat}">${fmt(d.vol24)}</div>
+          <div class="metric-lbl">Объём 24ч</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const list = document.getElementById('coinList');
+  // Flash changed cards
+  items.forEach(d => {
+    const old = list.querySelector(`#card-${d.symbol}`);
+    if(old && d.prevPrice != null) {
+      // will flash after re-render
+    }
+  });
+
+  list.innerHTML = html;
+
+  // Flash animations
+  items.forEach(d => {
+    if(d.prevPrice == null) return;
+    const card = document.getElementById(`card-${d.symbol}`);
+    if(!card) return;
+    if(d.price > d.prevPrice) {
+      card.classList.add('flash-green');
+      setTimeout(()=>card.classList.remove('flash-green'),600);
+    } else if(d.price < d.prevPrice) {
+      card.classList.add('flash-red');
+      setTimeout(()=>card.classList.remove('flash-red'),600);
+    }
+  });
+}
+
+// ─── DETAIL SHEET ────────────────────────────────────────────────────────────
+function showDetail(symbol) {
+  const d = state.data[symbol];
+  if(!d) return;
+  const name = symbol.replace('_USDT','');
+  const changeClass = d.change24h >= 0 ? 'pos' : 'neg';
+  document.getElementById('sheetTitle').innerHTML =
+    `${name} <span class="${changeClass}" style="font-size:14px;font-weight:400">${d.change24h>=0?'+':''}${d.change24h.toFixed(2)}%</span>`;
+
+  const rows = [
+    ['Цена', fmtPrice(d.price)],
+    [`Сделок ${state.interval}м`, d.trades],
+    [`Объём ${state.interval}м`, '$'+fmt(d.amount)],
+    [`Контракт ${state.interval}м`, fmt(d.volume)+' контр'],
+    ['Объём 24ч', fmt(d.vol24)],
+    ['Обновлено', now()],
+  ];
+  document.getElementById('sheetGrid').innerHTML = rows.map(([l,v])=>`
+    <div class="sheet-item">
+      <div class="sheet-item-lbl">${l}</div>
+      <div class="sheet-item-val">${v}</div>
+    </div>`).join('');
+  document.getElementById('sheetOverlay').classList.add('open');
+}
+function closeSheet(e) {
+  if(!e || e.target === document.getElementById('sheetOverlay') || !e.target)
+    document.getElementById('sheetOverlay').classList.remove('open');
+}
+
+// ─── CONN STATUS ─────────────────────────────────────────────────────────────
+function setConn(status) {
+  const dot   = document.getElementById('statusDot');
+  const label = document.getElementById('connLabel');
+  const map = {
+    ok:      ['', 'подключено'],
+    err:     ['offline', 'ошибка'],
+    off:     ['offline', 'остановлено'],
+    loading: ['', 'загрузка...'],
+  };
+  const [cls, txt] = map[status] || ['',''];
+  dot.className = 'status-dot' + (cls ? ' '+cls : '');
+  label.textContent = txt;
+}
+
+// ─── SERVICE WORKER ─── (PWA offline support) ────────────────────────────────
+if('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
