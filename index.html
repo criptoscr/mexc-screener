@@ -495,8 +495,13 @@ const state = {
   countdownTimer: null,
 };
 
-const PROXY = 'https://api.allorigins.win/raw?url=';
-const BASE   = 'https://contract.mexc.com';
+// Несколько прокси — пробуем по очереди
+const PROXIES = [
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://cors-anywhere.herokuapp.com/${url}`,
+];
+const BASE = 'https://contract.mexc.com';
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 function fmt(n, d=2) {
@@ -527,16 +532,44 @@ function heatColor(trades, vol) {
 }
 
 // ─── FETCH helpers ───────────────────────────────────────────────────────────
+let workingProxy = null; // кэшируем рабочий прокси
+
 async function apiFetch(path) {
   const url = `${BASE}${path}`;
-  // Try direct first (works on some devices/browsers)
+
+  // 1. Прямой запрос
   try {
-    const r = await fetch(url, { headers: { 'Content-Type':'application/json' } });
-    if(r.ok) return r.json();
+    const r = await fetchWithTimeout(url, { mode: 'cors' }, 4000);
+    if(r.ok) { const d = await r.json(); if(d) return d; }
   } catch(_) {}
-  // Fallback via allorigins proxy
-  const r2 = await fetch(PROXY + encodeURIComponent(url));
-  return r2.json();
+
+  // 2. Если уже нашли рабочий прокси — используем его
+  if(workingProxy !== null) {
+    try {
+      const r = await fetchWithTimeout(workingProxy(url), {}, 6000);
+      if(r.ok) { const d = await r.json(); if(d) return d; }
+    } catch(_) { workingProxy = null; }
+  }
+
+  // 3. Перебираем все прокси
+  for(const proxyFn of PROXIES) {
+    try {
+      const r = await fetchWithTimeout(proxyFn(url), {}, 7000);
+      if(r.ok) {
+        const d = await r.json();
+        if(d) { workingProxy = proxyFn; return d; }
+      }
+    } catch(_) {}
+  }
+
+  throw new Error('Все прокси недоступны');
+}
+
+function fetchWithTimeout(url, opts={}, ms=5000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal })
+    .finally(() => clearTimeout(id));
 }
 
 // ─── LOAD SYMBOLS ────────────────────────────────────────────────────────────
@@ -544,20 +577,31 @@ async function loadSymbols() {
   setConn('loading');
   try {
     const d = await apiFetch('/api/v1/contract/detail');
-    if(d.success && d.data) {
+    if(d && d.success && d.data) {
       state.symbols = d.data
         .filter(s => s.state === 0 && s.quoteCoin === 'USDT')
         .map(s => s.symbol);
       document.getElementById('totalCoins').textContent = state.symbols.length;
       setConn('ok');
+      toast('✓ Загружено ' + state.symbols.length + ' монет');
       return true;
     }
+    throw new Error('Неверный формат ответа');
   } catch(e) {
     console.error('loadSymbols', e);
+    setConn('err');
+    document.getElementById('coinList').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">⚠️</div>
+        <p><b>Ошибка подключения к MEXC</b><br/><br/>
+        Возможные причины:<br/>
+        — MEXC заблокирован в вашей стране<br/>
+        — Нет интернета<br/>
+        — Прокси-серверы перегружены<br/><br/>
+        Попробуйте через VPN или повторите через минуту.</p>
+      </div>`;
+    return false;
   }
-  setConn('err');
-  toast('⚠ Ошибка загрузки символов');
-  return false;
 }
 
 // ─── FETCH KLINE (1-min candles for last N minutes) ──────────────────────────
